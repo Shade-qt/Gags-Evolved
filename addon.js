@@ -152,7 +152,7 @@
           let level = 0;
           try { level = SpeechGetTotalGagLevel(C); } catch (e) {}
 
-          let stage = "No garbling";
+          let stage = "No Garbling";
           if (m.on) {
             stage = level >= SILENT_AT ? "Fully silent"
               : level > FADE_START ? `Fading (silent at ${SILENT_AT})`
@@ -167,9 +167,9 @@
           DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.17, w - 16, "white");
           DrawTextFit(m.on ? "Extended silencing: on" : "Extended silencing: off",
             tx + w / 2, ty + h * 0.40, w - 16, m.on ? "#b9a3ff" : "#a09db4");
-          DrawTextFit(`Gag level: ${level}`, tx + w / 2, ty + h * 0.40, w - 16,
+          DrawTextFit(`Gag level: ${level}`, tx + w / 2, ty + h * 0.63, w - 16,
             m.on && level > FADE_START ? "#f2aacb" : "white");
-          DrawTextFit(stage, tx + w / 2, ty + h * 0.40, w - 16, "#a09db4");
+          DrawTextFit(stage, tx + w / 2, ty + h * 0.86, w - 16, "#a09db4");
         }
       } catch (e) {
         if (!drawErrorLogged) { drawErrorLogged = true; console.error(`[${MOD_NAME}] overlay draw failed`, e); }

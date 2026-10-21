@@ -2,6 +2,8 @@
 // @name         Gags Evolved
 // @namespace    https://example.local/
 // @version      1.0
+// @author Shade
+// @description My take on improving the gag system in bondage club as per my needs~
 // @match https://*.bondageprojects.elementfx.com/R*/*
 // @match https://*.bondage-europe.com/R*/*
 // @match https://*.bondageeurope.com/R*/*

@@ -147,16 +147,29 @@
         DrawEmptyRect(x, y, s, s, "#b9a3ff", 2);
         DrawTextFit("GE", x + s / 2, y + s / 2, s - 8, "white");
 
-        // Hovering the badge itself reveals the version and state
+        // Hovering the badge itself reveals version, state and gag level
         if (MouseIn(x, y, s, s)) {
-          const w = 320 * Zoom, h = 96 * Zoom;
+          let level = 0;
+          try { level = SpeechGetTotalGagLevel(C); } catch (e) {}
+
+          let stage = "Extended silencing is off";
+          if (m.on) {
+            stage = level >= SILENT_AT ? "Fully silent"
+              : level > FADE_START ? `Fading (silent at ${SILENT_AT})`
+              : `Normal garble (fades above ${FADE_START})`;
+          }
+
+          const w = 340 * Zoom, h = 150 * Zoom;
           const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, x + s / 2 - w / 2));
           const ty = y + s + 8 * Zoom;
           DrawRect(tx, ty, w, h, "#1e1f29");
           DrawEmptyRect(tx, ty, w, h, "#b9a3ff", 2);
-          DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.32, w - 16, "white");
+          DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.17, w - 16, "white");
           DrawTextFit(m.on ? "Extended silencing: on" : "Extended silencing: off",
-            tx + w / 2, ty + h * 0.7, w - 16, m.on ? "#b9a3ff" : "#a09db4");
+            tx + w / 2, ty + h * 0.40, w - 16, m.on ? "#b9a3ff" : "#a09db4");
+          DrawTextFit(`Gag level: ${level}`, tx + w / 2, ty + h * 0.63, w - 16,
+            m.on && level > FADE_START ? "#f2aacb" : "white");
+          DrawTextFit(stage, tx + w / 2, ty + h * 0.86, w - 16, "#a09db4");
         }
       } catch (e) {
         if (!drawErrorLogged) { drawErrorLogged = true; console.error(`[${MOD_NAME}] overlay draw failed`, e); }

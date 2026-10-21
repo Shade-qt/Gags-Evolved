@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gags Evolved: a Bondage Club addon</title>
+<meta name="description" content="A Bondage Club addon that keeps gag silencing going past the game’s limit.">
+<style>
+  :root {
+    --bg: #15161d;
+    --surface: #1e1f29;
+    --line: #2f3040;
+    --text: #e9e7f2;
+    --muted: #a09db4;
+    --accent: #b9a3ff;
+    --rose: #f2aacb;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    padding: 4rem 1.25rem 5rem;
+    color: var(--text);
+    font: 1.0625rem/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 40rem; margin: 0 auto; }
+  h1, h2 {
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    font-weight: 400;
+    line-height: 1.15;
+    margin: 0;
+  }
+  h1 { font-size: clamp(2.8rem, 9vw, 4.4rem); letter-spacing: -0.02em; }
+  h2 { font-size: 1.75rem; margin-bottom: 0.75rem; }
+  h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
+  p { margin: 0 0 1rem; max-width: 36rem; }
+  .lede { font-size: 1.25rem; color: var(--muted); margin-top: 1rem; max-width: 32rem; }
+  section { margin-top: 3.5rem; }
+  a { color: var(--accent); text-underline-offset: 0.2em; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--surface);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+  }
+
+  /* The one memorable element: the same message at rising gag levels */
+  .log {
+    margin: 1.75rem 0 0.5rem;
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 0.5rem 0;
+    font-size: 1rem;
+  }
+  .log div { display: flex; gap: 1rem; padding: 0.55rem 1rem; }
+  .log div + div { border-top: 1px solid var(--line); }
+  .log .lv { flex: 0 0 4.5rem; color: var(--muted); }
+  .log .msg { white-space: pre-wrap; word-break: break-word; }
+  .log .act { color: var(--rose); }
+  .caption { color: var(--muted); font-size: 0.95rem; }
+
+  .method { border-left: 2px solid var(--line); padding-left: 1.25rem; margin: 1.75rem 0; }
+  ol { margin: 0 0 1rem; padding-left: 1.25rem; }
+  li { margin-bottom: 0.4rem; padding-left: 0.25rem; }
+
+  .bm {
+    display: inline-block;
+    margin: 0.25rem 0 1rem;
+    padding: 0.55rem 1rem;
+    background: var(--accent);
+    color: #1a1530;
+    font-weight: 600;
+    border-radius: 6px;
+    text-decoration: none;
+    cursor: grab;
+  }
+  .codebox { position: relative; margin: 0.5rem 0 1rem; }
+  .codebox pre {
+    margin: 0;
+    padding: 1rem;
+    background: var(--surface);
+    border-radius: 8px;
+    overflow-x: auto;
+    font: 0.85rem/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  button {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+  }
+  ul.notes { padding-left: 1.25rem; margin: 0; }
+  ul.notes li { margin-bottom: 0.9rem; max-width: 36rem; }
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.95rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Gags Evolved</h1>
+    <p class="lede">A Bondage Club addon that keeps gag silencing going past the game’s limit, so a heavier set of gags actually sounds heavier.</p>
+  </header>
+
+  <section>
+    <h2>What it does</h2>
+    <p>In the base game, silencing stops getting stronger once your total gag level passes a certain point. Gags Evolved carries on from there. Above level 20, speech fades out gradually. At level 40 and up, whatever the wearer types is sent as a quiet action line instead of chat text.</p>
+    <div class="log" role="img" aria-label="The message “hello there” at four gag levels, ending in a silent action line">
+      <div><span class="lv">Level 12</span><span class="msg">mmmmm mmmmm</span></div>
+      <div><span class="lv">Level 20</span><span class="msg"> m  m m m m</span></div>
+      <div><span class="lv">Level 30</span><span class="msg">    m     m</span></div>
+      <div><span class="lv">Level 40</span><span class="msg act">(An extremely soft, almost inaudible sound is heard from Lumi)</span></div>
+    </div>
+    <p class="caption">The same message, “hello there”, as the wearer’s gag level rises. The lines are examples.</p>
+    <p>It only changes your own speech, and only after you turn it on.</p>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p>Pick one method. The userscript is better for everyday use. The bookmark is a quick way to try it without installing anything.</p>
+
+    <div class="method">
+      <h3>Method 1: userscript (Tampermonkey or Violentmonkey)</h3>
+      <ol>
+        <li>Install <a href="https://www.tampermonkey.net/">Tampermonkey</a> or Violentmonkey in your browser.</li>
+        <li>Open <a href="https://raw.githubusercontent.com/Shade-qt/Gags-Evolved/main/loader.user.js">the install link</a>. Your userscript manager shows an install page with a button.</li>
+        <li>Reload Bondage Club.</li>
+      </ol>
+      <p>Updates arrive by themselves each time the game loads, so you only install once.</p>
+    </div>
+
+    <div class="method">
+      <h3>Method 2: bookmark</h3>
+      <ol>
+        <li>Drag this button to your bookmarks bar: <br><a class="bm" id="bmlink" href="#install">Gags Evolved</a></li>
+        <li>Open Bondage Club.</li>
+        <li>Click the bookmark once the page has loaded. Do this every time you load the game.</li>
+      </ol>
+      <p>If dragging doesn’t work, or you’re on a phone, copy the code below. Bookmark any page, edit that bookmark, and paste the code into its address field.</p>
+      <div class="codebox">
+        <pre><code id="bmcode"></code></pre>
+      </div>
+      <button type="button" id="copy">Copy bookmark code</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Using it</h2>
+    <p>It starts switched off. In any chat room, type <code>/gagfade on</code> to switch it on and <code>/gagfade off</code> to switch it off. Your choice is remembered for your account in that browser, so people who only want it for certain scenes can turn it off between them.</p>
+  </section>
+
+  <section>
+    <h2>Good to know</h2>
+    <ul class="notes">
+      <li>It only changes the messages you send while wearing the gags. It does nothing to anyone else’s speech.</li>
+      <li>Silenced messages don’t carry your original text, so anti-garble features, including the one in WCE, have nothing to reveal.</li>
+      <li>If you use WCE’s “Show sent messages while waiting for server” option, a dotted placeholder line stays in your own chat after a message is silenced. Only you see it, and switching that option off removes it.</li>
+      <li>Because updates load automatically, the addon’s code can change whenever its author publishes a new version. Only install addons from people you trust.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Planned</h2>
+    <p>These are ideas the author is working toward. None of them has a date, and some may change or never ship.</p>
+    <ul class="notes">
+      <li><strong>Extra gags inside one slot.</strong> The game gives you three mouth slots. The plan is for each slot to hold several gags at once: click the slot, a window opens with the extra gags, and their levels add up for that slot. Other players still see the one real gag. This is also what makes level 40 reachable with everyday gags.</li>
+      <li><strong>A settings menu in the game.</strong> A Gags Evolved screen under Settings, in the Extensions section like other addons have, so you can switch the addon on and off and adjust it without typing commands.</li>
+      <li><strong>Settings that follow you.</strong> Right now your on/off choice is stored in one browser. The idea is to keep it with your account so it carries over to every device you play on.</li>
+    </ul>
+  </section>
+
+  <footer>
+    A personal project, not affiliated with Bondage Club. Source and issues on <a href="https://github.com/Shade-qt/Gags-Evolved">GitHub</a>.
+  </footer>
+</main>
+
+<script>
+  const BOOKMARKLET = "javascript:(()=>{if(window.GagsEvolved)return;const l=(u,cb)=>{const s=document.createElement('script');s.src=u;s.onload=cb;document.head.appendChild(s)};const go=()=>l('https://shade-qt.github.io/Gags-Evolved/addon.js?t='+Date.now());typeof bcModSdk==='undefined'?l('https://cdn.jsdelivr.net/npm/bondage-club-mod-sdk@1.2.0/dist/bcmodsdk.js',go):go()})();";
+
+  const link = document.getElementById("bmlink");
+  link.href = BOOKMARKLET;
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    link.textContent = "Drag me to your bookmarks bar";
+  });
+
+  document.getElementById("bmcode").textContent = BOOKMARKLET;
+
+  const copyBtn = document.getElementById("copy");
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(BOOKMARKLET);
+      copyBtn.textContent = "Copied";
+    } catch (e) {
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById("bmcode"));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      copyBtn.textContent = "Press Ctrl+C to copy";
+    }
+    setTimeout(() => { copyBtn.textContent = "Copy bookmark code"; }, 2500);
+  });
+</script>
+</body>
+</html>

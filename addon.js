@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   if (window.GagsEvolved) return;
-
+  const VERSION = "0.4.0";
   const MOD_NAME = "GagsEvolved";
 
   // --- Tunables ---
@@ -66,13 +66,28 @@
     return SILENT_MARK + ooc.replace(/\s+/g, " ").trim();
   }
 
+  function publishMarker() {
+  try {
+    Player.OnlineSharedSettings = Player.OnlineSharedSettings || {};
+    const marker = { v: VERSION, on: api.enabled };
+    const cur = Player.OnlineSharedSettings.GagsEvolved;
+    if (cur && cur.v === marker.v && cur.on === marker.on) return;
+    Player.OnlineSharedSettings.GagsEvolved = marker;
+    ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+    if (CurrentScreen === "ChatRoom") ChatRoomCharacterUpdate(Player);
+    } catch (e) {
+      console.error(`[${MOD_NAME}] could not publish marker`, e);
+    }
+  }
+
   function init() {
     api.enabled = loadEnabled();
+    publishMarker();
 
     const mod = bcModSdk.registerMod({
       name: MOD_NAME,
       fullName: "Gags Evolved",
-      version: "0.3.0",
+      version: VERSION,
     });
 
     // 1) Fade and silence decisions
@@ -115,6 +130,40 @@
       return next(args);
     });
 
+    // 3) Icon Drawing Logic
+    let drawErrorLogged = false;
+    mod.hookFunction("ChatRoomCharacterViewDrawOverlay", 0, (args, next) => {
+      const ret = next(args);
+      try {
+        const [C, CharX, CharY, Zoom] = args;
+        const m = C?.OnlineSharedSettings?.GagsEvolved;
+        if (!m || !MouseIn(CharX, CharY, 500 * Zoom, 1000 * Zoom)) return ret;
+
+        // Small badge, shown while the mouse is over the character
+        const s = 56 * Zoom;
+        const x = CharX + 250 * Zoom - s / 2;
+        const y = CharY + 70 * Zoom;
+        DrawRect(x, y, s, s, m.on ? "#6c4fd0" : "#3a3b4a");
+        DrawEmptyRect(x, y, s, s, "#b9a3ff", 2);
+        DrawTextFit("GE", x + s / 2, y + s / 2, s - 8, "white");
+
+        // Hovering the badge itself reveals the version and state
+        if (MouseIn(x, y, s, s)) {
+          const w = 320 * Zoom, h = 96 * Zoom;
+          const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, x + s / 2 - w / 2));
+          const ty = y + s + 8 * Zoom;
+          DrawRect(tx, ty, w, h, "#1e1f29");
+          DrawEmptyRect(tx, ty, w, h, "#b9a3ff", 2);
+          DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.32, w - 16, "white");
+          DrawTextFit(m.on ? "Extended silencing: on" : "Extended silencing: off",
+            tx + w / 2, ty + h * 0.7, w - 16, m.on ? "#b9a3ff" : "#a09db4");
+        }
+      } catch (e) {
+        if (!drawErrorLogged) { drawErrorLogged = true; console.error(`[${MOD_NAME}] overlay draw failed`, e); }
+      }
+      return ret;
+    });
+
     // Chat command: /gagfade on | off
     try {
       CommandCombine([{
@@ -125,6 +174,7 @@
           if (arg === "on" || arg === "off") {
             api.enabled = arg === "on";
             saveEnabled(api.enabled);
+            publishMarker();
           }
           ChatRoomSendLocal(`[Gags Evolved] extended silencing is ${api.enabled ? "ON" : "OFF"}`);
         },

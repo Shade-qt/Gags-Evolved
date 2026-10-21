@@ -4,13 +4,16 @@
 
   // --- Tunables ---
   const FADE_START = 20;   // the game's own top tier; fading begins above this
-  const SILENT_AT = 40;    // at or above this, speech is fully replaced
+  const SILENT_AT = 40;    // at or above this, speech becomes a silent action
+  // No outer parentheses: action messages add them automatically
   const SILENT_LINES = [
-    "(An extremely soft, almost inaudible sound is heard from {name})",
-    "(A faint, muffled breath is all that escapes {name})",
-    "({name} tries to make a sound, but nothing audible gets through)",
-    "(The faintest murmur drifts from {name}, then nothing)",
+    "An extremely soft, almost inaudible sound is heard from {name}",
+    "A faint, muffled breath is all that escapes {name}",
+    "{name} tries to make a sound, but nothing audible gets through",
+    "The faintest murmur drifts from {name}, then nothing",
   ];
+  const SILENT_MARK = "\u2063"; // invisible marker linking the two hooks
+  const ACTION_KEY = "GagsEvolvedSilence";
 
   // --- Settings (per account, per device) ---
   const settingsKey = () => `${MOD_NAME}:${Player.MemberNumber}`;
@@ -28,8 +31,12 @@
     return typeof CharacterNickname === "function" ? CharacterNickname(Player) : Player.Name;
   }
 
+  function randomLine() {
+    return SILENT_LINES[Math.floor(Math.random() * SILENT_LINES.length)]
+      .replace("{name}", myName());
+  }
+
   function fadeText(text, base, ignoreOOC, level) {
-    // Probability of each remaining character dropping out: 0 at FADE_START, 1 at SILENT_AT
     const p = Math.min(1, (level - FADE_START) / (SILENT_AT - FADE_START));
     if (base.length !== text.length) return base; // rare edge case: skip fading
     const ranges = SpeechGetOOCRanges(text);
@@ -42,6 +49,8 @@
     return out;
   }
 
+  // Strips in-character text, keeps OOC, and tags the result with the marker.
+  // Pure-OOC messages are returned untouched.
   function silentText(text, ignoreOOC) {
     const ranges = SpeechGetOOCRanges(text);
     let hasSpeech = false;
@@ -51,11 +60,8 @@
       if (inOOC) ooc += text[i];
       else if (text[i].trim() !== "") hasSpeech = true;
     }
-    if (!hasSpeech) return text; // pure OOC message: leave it alone
-    const line = SILENT_LINES[Math.floor(Math.random() * SILENT_LINES.length)]
-      .replace("{name}", myName());
-    const oocTrim = ooc.replace(/\s+/g, " ").trim();
-    return oocTrim ? `${line} ${oocTrim}` : line;
+    if (!hasSpeech) return text;
+    return SILENT_MARK + ooc.replace(/\s+/g, " ").trim();
   }
 
   function init() {
@@ -64,9 +70,10 @@
     const mod = bcModSdk.registerMod({
       name: MOD_NAME,
       fullName: "Gags Evolved",
-      version: "0.2.0",
+      version: "0.3.0",
     });
 
+    // 1) Fade and silence decisions
     mod.hookFunction("SpeechTransformGagGarble", 0, (args, next) => {
       const [text, intensity, ignoreOOC] = args;
       if (!api.enabled || text == null || !(intensity > 0)) return next(args);
@@ -77,6 +84,32 @@
 
       const base = next([text, FADE_START, ignoreOOC]);
       return fadeText(text, base, ignoreOOC, level);
+    });
+
+    // 2) Turn marked messages into action messages just before sending.
+    // Low priority so we run after other addons have modified the message.
+    mod.hookFunction("ServerSend", -100, (args, next) => {
+      const [message, data] = args;
+      if (
+        message !== "ChatRoomChat" || !data ||
+        typeof data.Content !== "string" || !data.Content.startsWith(SILENT_MARK)
+      ) return next(args);
+
+      const ooc = data.Content.slice(SILENT_MARK.length);
+
+      if (data.Type === "Chat") {
+        const result = next([message, {
+          Content: ACTION_KEY,
+          Type: "Action",
+          Dictionary: [{ Tag: `MISSING TEXT IN "Interface.csv": ${ACTION_KEY}`, Text: randomLine() }],
+        }]);
+        if (ooc) next([message, { Content: ooc, Type: "Chat" }]);
+        return result;
+      }
+
+      // Whispers, emotes, etc.: fall back to inline text
+      data.Content = `(${randomLine()})` + (ooc ? " " + ooc : "");
+      return next(args);
     });
 
     // Chat command: /gagfade on | off

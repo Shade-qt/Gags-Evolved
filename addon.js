@@ -1,5 +1,7 @@
 (function () {
   "use strict";
+  if (window.GagsEvolved) return;
+
   const MOD_NAME = "GagsEvolved";
 
   // --- Tunables ---
@@ -73,12 +75,6 @@
       version: "0.3.0",
     });
 
-    // Test hook for debugging purpose
-    mod.hookFunction("ChatRoomMessage", 0, (args, next) => {
-      if (api.debug) console.log(`[${MOD_NAME}] recv`, JSON.stringify(args[0]));
-      return next(args);
-    });
-
     // 1) Fade and silence decisions
     mod.hookFunction("SpeechTransformGagGarble", 0, (args, next) => {
       const [text, intensity, ignoreOOC] = args;
@@ -97,9 +93,6 @@
     mod.hookFunction("ServerSend", -100, (args, next) => {
       const [message, data] = args;
 
-      //Test condition for debugging
-      if (api.debug && message === "ChatRoomChat") console.log(`[${MOD_NAME}] send`, JSON.stringify(data));
-      
       if (
         message !== "ChatRoomChat" || !data ||
         typeof data.Content !== "string" || !data.Content.startsWith(SILENT_MARK)

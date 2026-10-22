@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   if (window.GagsEvolved) return;
-  const VERSION = "0.4.0";
+  const VERSION = "1.0.4";
   const MOD_NAME = "GagsEvolved";
 
   // --- Tunables ---

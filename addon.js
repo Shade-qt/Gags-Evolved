@@ -188,10 +188,10 @@
           let level = 0;
             try { level = SpeechGetTotalGagLevel(C); } catch (e) {}
 
-            const stage = !m.on ? "vanilla"
-              : level >= SILENT_AT ? "silent"
-              : level > FADE_START ? "fading"
-              : "normal";
+            const stage = !m.on ? "Vanilla"
+              : level >= SILENT_AT ? "Silent"
+              : level > FADE_START ? "Fading"
+              : "Normal";
 
             const w = 300 * Zoom, h = 78 * Zoom;
             const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, cx - w / 2));

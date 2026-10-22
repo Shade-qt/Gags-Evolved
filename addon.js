@@ -153,7 +153,8 @@
           MainCanvas.textAlign = "left";
           try {
             DrawText(`Gags Evolved v${VERSION}`, 500, 125, "Black", "Gray");
-            DrawCheckbox(500, 220, 80, 80, "Enable extended silencing", settings.enabled);
+            DrawCheckbox(500, 220, 80, 80, "", settings.enabled);
+            DrawText("Enable extended silencing", 500 + 80 + 24, 220 + 80 / 2, "Black", "Gray");
             DrawText(`Fading starts above gag level ${FADE_START}, and speech is fully silent from level ${SILENT_AT}.`, 500, 400, "Black", "Gray");
           } finally {
             MainCanvas.textAlign = "center";

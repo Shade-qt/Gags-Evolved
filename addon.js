@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   if (window.GagsEvolved) return;
-  const VERSION = "1.0.4";
+  const VERSION = "1.0.5";
   const MOD_NAME = "GagsEvolved";
 
   // --- Tunables ---
@@ -17,13 +17,38 @@
   const SILENT_MARK = "\u2063"; // invisible marker linking the two hooks
   const ACTION_KEY = "GagsEvolvedSilence";
 
-  // --- Settings (per account, per device) ---
-  const settingsKey = () => `${MOD_NAME}:${Player.MemberNumber}`;
-  function loadEnabled() {
-    try { return localStorage.getItem(settingsKey()) === "on"; } catch (e) { return false; }
+  // --- Settings (stored on your account) ---
+  const EXT_KEY = "GagsEvolved";
+  const DEFAULTS = { enabled: false };
+  let settings = { ...DEFAULTS };
+
+  function saveSettings() {
+    try {
+      Player.ExtensionSettings = Player.ExtensionSettings || {};
+      Player.ExtensionSettings[EXT_KEY] = JSON.stringify(settings);
+      ServerPlayerExtensionSettingsSync(EXT_KEY);
+    } catch (e) {
+      console.error(`[${MOD_NAME}] could not save settings`, e);
+    }
   }
-  function saveEnabled(on) {
-    try { localStorage.setItem(settingsKey(), on ? "on" : "off"); } catch (e) {}
+
+  function loadSettings() {
+    let stored = null;
+    try {
+      const raw = Player.ExtensionSettings?.[EXT_KEY];
+      if (typeof raw === "string") stored = JSON.parse(raw);
+    } catch (e) {
+      console.error(`[${MOD_NAME}] could not read settings`, e);
+    }
+    if (stored && typeof stored === "object") {
+      settings = { ...DEFAULTS, ...stored };
+      return;
+    }
+    // First run on this account: carry over the old browser-only setting
+    let old = false;
+    try { old = localStorage.getItem(`${MOD_NAME}:${Player.MemberNumber}`) === "on"; } catch (e) {}
+    settings = { ...DEFAULTS, enabled: old };
+    saveSettings();
   }
 
   // Console helper: GagsEvolved.force = 45 pretends your gag level is 45 (while gagged at all)
@@ -108,7 +133,8 @@
   }
 
   function init() {
-    api.enabled = loadEnabled();
+    loadSettings();
+    api.enabled = settings.enabled;
     publishMarker();
 
     const mod = bcModSdk.registerMod({
@@ -228,7 +254,8 @@
           const arg = (text || "").trim().toLowerCase();
           if (arg === "on" || arg === "off") {
             api.enabled = arg === "on";
-            saveEnabled(api.enabled);
+            settings.enabled = api.enabled;
+            saveSettings();
             publishMarker();
           }
           ChatRoomSendLocal(`[Gags Evolved] extended silencing is ${api.enabled ? "ON" : "OFF"}`);

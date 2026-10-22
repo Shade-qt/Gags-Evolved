@@ -137,39 +137,42 @@
       try {
         const [C, CharX, CharY, Zoom] = args;
         const m = C?.OnlineSharedSettings?.GagsEvolved;
-        if (!m || !MouseIn(CharX, CharY, 500 * Zoom, 1000 * Zoom)) return ret;
+        if (!m) return ret;
 
-        // Small badge, shown while the mouse is over the character
-        const s = 56 * Zoom;
-        const x = CharX + 250 * Zoom - s / 2;
-        const y = CharY + 70 * Zoom;
-        DrawRect(x, y, s, s, m.on ? "#6c4fd0" : "#3a3b4a");
-        DrawEmptyRect(x, y, s, s, "#b9a3ff", 2);
-        DrawTextFit("GE", x + s / 2, y + s / 2, s - 8, "white");
+        // Tuning, all in the character's 500 x 1000 drawing space
+        const ZONE_H = 300;   // badge appears while the mouse is in the top part of the character
+        const BADGE_D = 40;   // badge diameter
+        const BADGE_X = 360;  // badge centre, from the character's left edge
+        const BADGE_Y = 100;  // badge centre, from the character's top edge
 
-        // Hovering the badge itself reveals version, state and gag level
-        if (MouseIn(x, y, s, s)) {
+        if (!MouseIn(CharX, CharY, 500 * Zoom, ZONE_H * Zoom)) return ret;
+
+        const d = BADGE_D * Zoom;
+        const cx = CharX + BADGE_X * Zoom;
+        const cy = CharY + BADGE_Y * Zoom;
+        const fill = m.on ? "#6c4fd0" : "#3a3b4a";
+
+        if (typeof DrawCircle === "function") DrawCircle(cx, cy, d / 2, 2, "#b9a3ff", fill);
+        else DrawRect(cx - d / 2, cy - d / 2, d, d, fill);
+        DrawTextFit("GE", cx, cy, d - 10 * Zoom, "white");
+
+        // Hovering the badge itself reveals a compact tooltip
+        if (MouseIn(cx - d / 2, cy - d / 2, d, d)) {
           let level = 0;
           try { level = SpeechGetTotalGagLevel(C); } catch (e) {}
 
-          let stage = "No Garbling";
-          if (m.on) {
-            stage = level >= SILENT_AT ? "Fully silent"
-              : level > FADE_START ? `Fading (silent at ${SILENT_AT})`
-              : `Normal garble (fades above ${FADE_START})`;
-          }
+          let line2 = `${m.on ? "On" : "Off"} | Level ${level}`;
+          if (m.on && level >= SILENT_AT) line2 += " | silent";
+          else if (m.on && level > FADE_START) line2 += " | fading";
 
-          const w = 340 * Zoom, h = 150 * Zoom;
-          const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, x + s / 2 - w / 2));
-          const ty = y + s + 8 * Zoom;
-          DrawRect(tx, ty, w, h, "#1e1f29");
-          DrawEmptyRect(tx, ty, w, h, "#b9a3ff", 2);
-          DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.17, w - 16, "white");
-          DrawTextFit(m.on ? "Extended silencing: on" : "Extended silencing: off",
-            tx + w / 2, ty + h * 0.40, w - 16, m.on ? "#b9a3ff" : "#a09db4");
-          DrawTextFit(`Gag level: ${level}`, tx + w / 2, ty + h * 0.63, w - 16,
-            m.on && level > FADE_START ? "#f2aacb" : "white");
-          DrawTextFit(stage, tx + w / 2, ty + h * 0.86, w - 16, "#a09db4");
+          const w = 270 * Zoom, h = 78 * Zoom;
+          const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, cx - w / 2));
+          const ty = cy + d / 2 + 8 * Zoom;
+          DrawRect(tx, ty, w, h, "#1b1c25");
+          DrawEmptyRect(tx, ty, w, h, "#6c4fd0", 2);
+          DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.3, w - 16 * Zoom, "white");
+          DrawTextFit(line2, tx + w / 2, ty + h * 0.7, w - 16 * Zoom,
+            m.on && level > FADE_START ? "#f2aacb" : "#a09db4");
         }
       } catch (e) {
         if (!drawErrorLogged) { drawErrorLogged = true; console.error(`[${MOD_NAME}] overlay draw failed`, e); }

@@ -5,8 +5,8 @@
   const MOD_NAME = "GagsEvolved";
 
   // --- Tunables ---
-  const FADE_START = 20;   // the game's own top tier; fading begins above this
-  const SILENT_AT = 40;    // at or above this, speech becomes a silent action
+  let FADE_START = 20;   // the game's own top tier; fading begins above this
+  let SILENT_AT = 40;    // at or above this, speech becomes a silent action
   // No outer parentheses: action messages add them automatically
   const SILENT_LINES = [
     "An extremely soft, almost inaudible sound is heard from {name}",
@@ -19,8 +19,16 @@
 
   // --- Settings (stored on your account) ---
   const EXT_KEY = "GagsEvolved";
-  const DEFAULTS = { enabled: false };
+  const DEFAULTS = { enabled: false, fadeStart: 20, silentAt: 40, showBadge: true };
   let settings = { ...DEFAULTS };
+
+  function applySettings() {
+    const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+    settings.fadeStart = clamp(Math.round(Number(settings.fadeStart) || 20), 20, 60);
+    settings.silentAt = clamp(Math.round(Number(settings.silentAt) || 40), settings.fadeStart + 5, 80);
+    FADE_START = settings.fadeStart;
+    SILENT_AT = settings.silentAt;
+  }
 
   function saveSettings() {
     try {
@@ -30,6 +38,13 @@
     } catch (e) {
       console.error(`[${MOD_NAME}] could not save settings`, e);
     }
+  }
+
+  // Menu taps can come fast, so wait until they stop before saving to the server
+  let saveTimer = null;
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveSettings, 800);
   }
 
   function loadSettings() {
@@ -42,12 +57,14 @@
     }
     if (stored && typeof stored === "object") {
       settings = { ...DEFAULTS, ...stored };
+      applySettings();
       return;
     }
     // First run on this account: carry over the old browser-only setting
     let old = false;
     try { old = localStorage.getItem(`${MOD_NAME}:${Player.MemberNumber}`) === "on"; } catch (e) {}
     settings = { ...DEFAULTS, enabled: old };
+    applySettings();
     saveSettings();
   }
 
@@ -92,14 +109,19 @@
   }
 
   function publishMarker() {
-  try {
-    Player.OnlineSharedSettings = Player.OnlineSharedSettings || {};
-    const marker = { v: VERSION, on: api.enabled };
-    const cur = Player.OnlineSharedSettings.GagsEvolved;
-    if (cur && cur.v === marker.v && cur.on === marker.on) return;
-    Player.OnlineSharedSettings.GagsEvolved = marker;
-    ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
-    if (CurrentScreen === "ChatRoom") ChatRoomCharacterUpdate(Player);
+    try {
+      Player.OnlineSharedSettings = Player.OnlineSharedSettings || {};
+      if (!settings.showBadge) {
+        if (!("GagsEvolved" in Player.OnlineSharedSettings)) return;
+        delete Player.OnlineSharedSettings.GagsEvolved;
+      } else {
+        const marker = { v: VERSION, on: api.enabled };
+        const cur = Player.OnlineSharedSettings.GagsEvolved;
+        if (cur && cur.v === marker.v && cur.on === marker.on) return;
+        Player.OnlineSharedSettings.GagsEvolved = marker;
+      }
+      ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+      if (CurrentScreen === "ChatRoom") ChatRoomCharacterUpdate(Player);
     } catch (e) {
       console.error(`[${MOD_NAME}] could not publish marker`, e);
     }
@@ -110,6 +132,12 @@
     settings.enabled = api.enabled;
     saveSettings();
     publishMarker();
+  }
+
+  function adjust(key, delta) {
+    settings[key] += delta;
+    applySettings();
+    saveSoon();
   }
 
   function tipFont() {
@@ -153,12 +181,30 @@
           MainCanvas.textAlign = "left";
           try {
             DrawText(`Gags Evolved v${VERSION}`, 500, 125, "Black", "Gray");
+
             DrawCheckbox(500, 220, 80, 80, "", settings.enabled);
-            DrawText("Enable extended silencing", 500 + 80 + 24, 220 + 80 / 2, "Black", "Gray");
-            DrawText(`Fading starts above gag level ${FADE_START}, and speech is fully silent from level ${SILENT_AT}.`, 500, 400, "Black", "Gray");
+            DrawText("Enable extended silencing", 604, 260, "Black", "Gray");
+
+            DrawText("Fade starts above level", 500, 385, "Black", "Gray");
+            DrawText("Fully silent from level", 500, 515, "Black", "Gray");
+
+            DrawCheckbox(500, 620, 80, 80, "", settings.showBadge);
+            DrawText("Show my badge to others", 604, 660, "Black", "Gray");
           } finally {
             MainCanvas.textAlign = "center";
           }
+
+          // Number rows: -5, -1, value, +1, +5
+          const rows = [[340, settings.fadeStart], [470, settings.silentAt]];
+          for (const [y, value] of rows) {
+            DrawButton(1000, y, 90, 90, "-5", "White");
+            DrawButton(1110, y, 90, 90, "-1", "White");
+            DrawText(String(value), 1290, y + 45, "Black", "Gray");
+            DrawButton(1380, y, 90, 90, "+1", "White");
+            DrawButton(1490, y, 90, 90, "+5", "White");
+          }
+
+          DrawButton(500, 780, 420, 90, "Reset to defaults", "White");
           DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "Back");
         },
         click: () => {
@@ -166,8 +212,24 @@
             if (typeof PreferenceSubscreenExtensionsClear === "function") PreferenceSubscreenExtensionsClear();
             return;
           }
-          // The whole row (box and label) is the tap target
-          if (MouseIn(480, 200, 1000, 120)) setEnabled(!settings.enabled);
+          if (MouseIn(480, 200, 1000, 120)) { setEnabled(!settings.enabled); return; }
+          if (MouseIn(480, 600, 1000, 120)) {
+            settings.showBadge = !settings.showBadge;
+            saveSoon();
+            publishMarker();
+            return;
+          }
+          const steps = [[1000, -5], [1110, -1], [1380, 1], [1490, 5]];
+          for (const [x, d] of steps) {
+            if (MouseIn(x, 340, 90, 90)) { adjust("fadeStart", d); return; }
+            if (MouseIn(x, 470, 90, 90)) { adjust("silentAt", d); return; }
+          }
+          if (MouseIn(500, 780, 420, 90)) {
+            settings.fadeStart = DEFAULTS.fadeStart;
+            settings.silentAt = DEFAULTS.silentAt;
+            applySettings();
+            saveSoon();
+          }
         },
       });
     } catch (e) {

@@ -105,6 +105,13 @@
     }
   }
 
+  function setEnabled(on) {
+    api.enabled = !!on;
+    settings.enabled = api.enabled;
+    saveSettings();
+    publishMarker();
+  }
+
   function tipFont() {
     return typeof CommonGetFontName === "function" ? CommonGetFontName() : "Arial";
   }
@@ -136,6 +143,29 @@
     loadSettings();
     api.enabled = settings.enabled;
     publishMarker();
+
+    try {
+      PreferenceRegisterExtensionSetting({
+        Identifier: "GagsEvolved",
+        ButtonText: "Gags Evolved",
+        load: () => {},
+        run: () => {
+          DrawText(`Gags Evolved v${VERSION}`, 500, 125, "Black", "Gray");
+          DrawCheckbox(500, 225, 64, 64, "Enable extended silencing", settings.enabled);
+          DrawText(`Fading starts above gag level ${FADE_START}, and speech is fully silent from level ${SILENT_AT}.`, 1000, 420, "Black", "Gray");
+          DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "Back");
+        },
+        click: () => {
+          if (MouseIn(1815, 75, 90, 90)) {
+            if (typeof PreferenceSubscreenExtensionsClear === "function") PreferenceSubscreenExtensionsClear();
+            return;
+          }
+          if (MouseIn(500, 225, 700, 64)) setEnabled(!settings.enabled);
+        },
+      });
+    } catch (e) {
+      console.error(`[${MOD_NAME}] menu registration failed`, e);
+    }
 
     const mod = bcModSdk.registerMod({
       name: MOD_NAME,
@@ -252,12 +282,7 @@
         Description: "[on|off]: toggle Gags Evolved extended silencing",
         Action: (text) => {
           const arg = (text || "").trim().toLowerCase();
-          if (arg === "on" || arg === "off") {
-            api.enabled = arg === "on";
-            settings.enabled = api.enabled;
-            saveSettings();
-            publishMarker();
-          }
+          if (arg === "on" || arg === "off") setEnabled(arg === "on");
           ChatRoomSendLocal(`[Gags Evolved] extended silencing is ${api.enabled ? "ON" : "OFF"}`);
         },
       }]);

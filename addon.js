@@ -80,6 +80,33 @@
     }
   }
 
+  function tipFont() {
+    return typeof CommonGetFontName === "function" ? CommonGetFontName() : "Arial";
+  }
+
+  // Largest size (from start down to min) at which every text fits in maxWidth
+  function fitFontSize(texts, maxWidth, start, min) {
+    MainCanvas.save();
+    let size = start;
+    while (size > min) {
+      MainCanvas.font = `${size}px ${tipFont()}`;
+      if (texts.every(t => MainCanvas.measureText(t).width <= maxWidth)) break;
+      size--;
+    }
+    MainCanvas.restore();
+    return size;
+  }
+
+  function drawLabel(text, x, y, size, color) {
+    MainCanvas.save();
+    MainCanvas.font = `${size}px ${tipFont()}`;
+    MainCanvas.fillStyle = color;
+    MainCanvas.textAlign = "center";
+    MainCanvas.textBaseline = "middle";
+    MainCanvas.fillText(text, x, y);
+    MainCanvas.restore();
+  }
+
   function init() {
     api.enabled = loadEnabled();
     publishMarker();
@@ -170,17 +197,21 @@
             const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, cx - w / 2));
             const ty = cy + d / 2 + 8 * Zoom;
             const colW = w / 3;
-            const rowY = ty + h * 0.7;
+
+            const title = `Gags Evolved v${m.v}`;
+            const items = [m.on ? "On" : "Off", `Level ${level}`, stage];
+            const base = Math.max(12, Math.round(28 * Zoom));
+            const titleSize = fitFontSize([title], w - 16 * Zoom, base, 10);
+            const rowSize = fitFontSize(items, colW - 12 * Zoom, Math.round(base * 0.85), 10);
 
             DrawRect(tx, ty, w, h, "#1b1c25");
             DrawEmptyRect(tx, ty, w, h, "#6c4fd0", 2);
-            DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.3, w - 16 * Zoom, "white");
+            drawLabel(title, tx + w / 2, ty + h * 0.3, titleSize, "white");
 
             const muted = "#a09db4";
             const hot = m.on && level > FADE_START ? "#f2aacb" : muted;
-            DrawTextFit(m.on ? "On" : "Off", tx + colW * 0.5, rowY, colW - 12 * Zoom, m.on ? "#b9a3ff" : muted);
-            DrawTextFit(`Level ${level}`, tx + colW * 1.5, rowY, colW - 12 * Zoom, hot);
-            DrawTextFit(stage, tx + colW * 2.5, rowY, colW - 12 * Zoom, hot);
+            const cols = [m.on ? "#b9a3ff" : muted, hot, hot];
+            items.forEach((t, i) => drawLabel(t, tx + colW * (i + 0.5), ty + h * 0.7, rowSize, cols[i]));
         }
       } catch (e) {
         if (!drawErrorLogged) { drawErrorLogged = true; console.error(`[${MOD_NAME}] overlay draw failed`, e); }

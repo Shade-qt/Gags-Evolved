@@ -150,9 +150,14 @@
         ButtonText: "Gags Evolved",
         load: () => {},
         run: () => {
-          DrawText(`Gags Evolved v${VERSION}`, 500, 125, "Black", "Gray");
-          DrawCheckbox(500, 225, 64, 64, "Enable extended silencing", settings.enabled);
-          DrawText(`Fading starts above gag level ${FADE_START}, and speech is fully silent from level ${SILENT_AT}.`, 1000, 420, "Black", "Gray");
+          MainCanvas.textAlign = "left";
+          try {
+            DrawText(`Gags Evolved v${VERSION}`, 500, 125, "Black", "Gray");
+            DrawCheckbox(500, 220, 80, 80, "Enable extended silencing", settings.enabled);
+            DrawText(`Fading starts above gag level ${FADE_START}, and speech is fully silent from level ${SILENT_AT}.`, 500, 400, "Black", "Gray");
+          } finally {
+            MainCanvas.textAlign = "center";
+          }
           DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "Back");
         },
         click: () => {
@@ -160,7 +165,8 @@
             if (typeof PreferenceSubscreenExtensionsClear === "function") PreferenceSubscreenExtensionsClear();
             return;
           }
-          if (MouseIn(500, 225, 700, 64)) setEnabled(!settings.enabled);
+          // The whole row (box and label) is the tap target
+          if (MouseIn(480, 200, 1000, 120)) setEnabled(!settings.enabled);
         },
       });
     } catch (e) {

@@ -159,20 +159,28 @@
         // Hovering the badge itself reveals a compact tooltip
         if (MouseIn(cx - d / 2, cy - d / 2, d, d)) {
           let level = 0;
-          try { level = SpeechGetTotalGagLevel(C); } catch (e) {}
+            try { level = SpeechGetTotalGagLevel(C); } catch (e) {}
 
-          let line2 = `${m.on ? "On" : "Off"} | Level ${level}`;
-          if (m.on && level >= SILENT_AT) line2 += " | silent";
-          else if (m.on && level > FADE_START) line2 += " | fading";
+            const stage = !m.on ? "vanilla"
+              : level >= SILENT_AT ? "silent"
+              : level > FADE_START ? "fading"
+              : "normal";
 
-          const w = 270 * Zoom, h = 78 * Zoom;
-          const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, cx - w / 2));
-          const ty = cy + d / 2 + 8 * Zoom;
-          DrawRect(tx, ty, w, h, "#1b1c25");
-          DrawEmptyRect(tx, ty, w, h, "#6c4fd0", 2);
-          DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.3, w - 16 * Zoom, "white");
-          DrawTextFit(line2, tx + w / 2, ty + h * 0.7, w - 16 * Zoom,
-            m.on && level > FADE_START ? "#f2aacb" : "#a09db4");
+            const w = 300 * Zoom, h = 78 * Zoom;
+            const tx = Math.max(CharX, Math.min(CharX + 500 * Zoom - w, cx - w / 2));
+            const ty = cy + d / 2 + 8 * Zoom;
+            const colW = w / 3;
+            const rowY = ty + h * 0.7;
+
+            DrawRect(tx, ty, w, h, "#1b1c25");
+            DrawEmptyRect(tx, ty, w, h, "#6c4fd0", 2);
+            DrawTextFit(`Gags Evolved v${m.v}`, tx + w / 2, ty + h * 0.3, w - 16 * Zoom, "white");
+
+            const muted = "#a09db4";
+            const hot = m.on && level > FADE_START ? "#f2aacb" : muted;
+            DrawTextFit(m.on ? "On" : "Off", tx + colW * 0.5, rowY, colW - 12 * Zoom, m.on ? "#b9a3ff" : muted);
+            DrawTextFit(`Level ${level}`, tx + colW * 1.5, rowY, colW - 12 * Zoom, hot);
+            DrawTextFit(stage, tx + colW * 2.5, rowY, colW - 12 * Zoom, hot);
         }
       } catch (e) {
         if (!drawErrorLogged) { drawErrorLogged = true; console.error(`[${MOD_NAME}] overlay draw failed`, e); }

@@ -42,6 +42,12 @@ The addon starts **off**. In any chat room:
 
 Your choice is remembered per account in that browser.
 
+## Spotting other users
+
+Each copy of the addon publishes a small marker (its version and whether silencing is on) in the account data that other players in the room can read. Hover the top of a character who has the addon and a small **GE** badge appears. Hover the badge to see their version, whether the addon is on, and their current gag level and stage (normal, fading or silent). The badge is purple when the addon is on and grey when it is off. Characters without the addon show no badge.
+
+This means everyone in a room can see that you run the addon.
+
 ## Good to know
 
 - If you use WCE’s **“Show sent messages while waiting for server”** option, a dotted placeholder line stays in your own chat after a message is silenced. Only you see it. Switching that option off removes it.
@@ -67,10 +73,11 @@ Ideas, not promises. None has a date.
 
 ## How it works
 
-The addon registers with the [Bondage Club Mod SDK](https://github.com/Jomshir98/bondage-club-mod-sdk) and uses two hooks:
+The addon registers with the [Bondage Club Mod SDK](https://github.com/Jomshir98/bondage-club-mod-sdk) and uses three hooks:
 
 1. `SpeechTransformGagGarble` decides what happens at each level. At silence level it strips the in-character text and leaves a marker.
 2. `ServerSend` catches marked messages just before they are sent and rebuilds them as action messages.
+3. `ChatRoomCharacterViewDrawOverlay` draws the hover badge and its tooltip.
 
 Everything runs client-side. Nothing is sent anywhere except the normal game messages.
 

@@ -40,7 +40,19 @@ The addon starts **off**. In any chat room:
 /gagfade off
 ```
 
-Your choice is remembered per account in that browser.
+Your settings are saved with your account, so they follow you to every device you play on.
+
+### Settings menu
+
+Open the game’s **Settings**, then **Extensions**, then **Gags Evolved**:
+
+- **Enable extended silencing**: the same switch as `/gagfade on|off`.
+- **Fade starts above level**: from 20 to 60. It can’t go below 20, because the game’s own garbling covers everything up to there.
+- **Fully silent from level**: up to 80, and always at least 5 above the fade start.
+- **Show my badge to others**: turn it off to stop other users seeing that you run the addon.
+- **Reset to defaults**: puts everything back to the starting values. It asks for a second tap to confirm.
+
+The menu is laid out on the game’s own canvas, so it works the same on phone and PC.
 
 ## Spotting other users
 
@@ -55,12 +67,10 @@ This means everyone in a room can see that you run the addon.
 
 ## Tuning
 
-The numbers live at the top of `addon.js`:
+The two levels (where fading begins and where speech goes fully silent) are set in the settings menu. The pool of silent action lines lives at the top of `addon.js`:
 
 | Constant | Meaning |
 | --- | --- |
-| `FADE_START` | Level above which fading begins (the game’s own top tier is 20) |
-| `SILENT_AT` | Level at which speech is replaced by an action line |
 | `SILENT_LINES` | The pool of silent action lines. `{name}` is replaced with your character’s name |
 
 ## Planned
@@ -68,8 +78,6 @@ The numbers live at the top of `addon.js`:
 Ideas, not promises. None has a date.
 
 - **Extra gags inside one slot.** Each of the three mouth slots would hold several gags at once, managed from a window opened by clicking the slot. Their levels add up for that slot, and other players still see only the one real gag.
-- **A settings menu in the game**, under Settings → Extensions, like other addons have.
-- **Settings that follow you** between devices by storing them with your account instead of in the browser.
 
 ## How it works
 

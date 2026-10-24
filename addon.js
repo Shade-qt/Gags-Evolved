@@ -140,6 +140,17 @@
     saveSoon();
   }
 
+  let resetArmed = false;
+  let resetTimer = null;
+
+  function resetAll() {
+    settings = { ...DEFAULTS };
+    applySettings();
+    api.enabled = settings.enabled;
+    saveSoon();
+    publishMarker();
+  }
+
   function tipFont() {
     return typeof CommonGetFontName === "function" ? CommonGetFontName() : "Arial";
   }
@@ -204,7 +215,9 @@
             DrawButton(1490, y, 90, 90, "+5", "White");
           }
 
-          DrawButton(500, 780, 420, 90, "Reset to defaults", "White");
+          DrawButton(500, 780, 520, 90,
+            resetArmed ? "Tap again to confirm" : "Reset to defaults",
+            resetArmed ? "#f2aacb" : "White");
           DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "Back");
         },
         click: () => {
@@ -224,12 +237,16 @@
             if (MouseIn(x, 340, 90, 90)) { adjust("fadeStart", d); return; }
             if (MouseIn(x, 470, 90, 90)) { adjust("silentAt", d); return; }
           }
-          if (MouseIn(500, 780, 420, 90)) {
-            settings.fadeStart = DEFAULTS.fadeStart;
-            settings.silentAt = DEFAULTS.silentAt;
-            applySettings();
-            saveSoon();
+          if (MouseIn(500, 780, 520, 90)) {
+          if (resetArmed) {
+            clearTimeout(resetTimer);
+            resetArmed = false;
+            resetAll();
+          } else {
+            resetArmed = true;
+            resetTimer = setTimeout(() => { resetArmed = false; }, 3000);
           }
+        }
         },
       });
     } catch (e) {

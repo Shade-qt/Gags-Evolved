@@ -19,10 +19,12 @@
   const VIRTUAL_GROUPS = ["ItemMouth", "ItemMouth2", "ItemMouth3"];
   const MAX_VIRTUAL_PER_SLOT = 8;
   const REQUIRE_REAL_ITEM = true; // extras only count while that slot holds a real item
+  const REAL_GROUPS = ["ItemMouth", "ItemMouth2", "ItemMouth3"];
+  const MAX_STACK = 10;
 
   // --- Settings (stored on your account) ---
   const EXT_KEY = "GagsEvolved";
-  const DEFAULTS = { enabled: false, fadeStart: 20, silentAt: 40, showBadge: true, virtual: {} };
+  const DEFAULTS = { enabled: false, fadeStart: 20, silentAt: 40, showBadge: true, extraGags: false, stack: [] };
   let settings = { ...DEFAULTS };
 
   let virtualLevels = {};
@@ -58,8 +60,12 @@
     settings.silentAt = clamp(Math.round(Number(settings.silentAt) || 40), settings.fadeStart + 5, 80);
     FADE_START = settings.fadeStart;
     SILENT_AT = settings.silentAt;
-    settings.virtual = sanitizeVirtual(settings.virtual);
-    refreshVirtual();
+    settings.extraGags = !!settings.extraGags;
+    settings.stack = (Array.isArray(settings.stack) ? settings.stack : [])
+      .filter(n => typeof n === "string" && assetLevel("ItemMouth", n) > 0)
+      .slice(0, MAX_STACK);
+    delete settings.virtual; // old per-slot format, no longer used
+    refreshStack();
   }
 
   function saveSettings() {
@@ -176,8 +182,7 @@
   let resetTimer = null;
 
   function resetAll() {
-    const keep = settings.virtual;
-    settings = { ...DEFAULTS, virtual: keep };
+    settings = { ...DEFAULTS, stack: [] };
     applySettings();
     api.enabled = settings.enabled;
     saveSoon();
@@ -211,41 +216,295 @@
     MainCanvas.restore();
   }
 
+  let stackTotal = 0;
+
+  function refreshStack() {
+    stackTotal = settings.stack.reduce((sum, n) => sum + (assetLevel("ItemMouth", n) || 0), 0);
+  }
+  function baseFilled() {
+    return REAL_GROUPS.every(g => InventoryGet(Player, g));
+  }
+  function virtualExtra() {
+    return settings.extraGags && baseFilled() ? stackTotal : 0;
+  }
+
+  // Until the hold exists: if a real gag goes missing, clear the stack
+  let baseMissing = 0;
+  function startSlotWatcher() {
+    setInterval(() => {
+      if (!Player?.Appearance?.length || !settings.stack.length) { baseMissing = 0; return; }
+      baseMissing = baseFilled() ? 0 : baseMissing + 1;
+      if (baseMissing >= 2) {
+        settings.stack = [];
+        baseMissing = 0;
+        refreshStack(); saveSoon();
+      }
+    }, 1500);
+  }
+
+  // ---------- Floating window for the extra gags ----------
+  let winEl = null;
+  let winSig = "";
+  let winMsg = "";
+  let winQuery = "";
+  let msgTimer = null;
+  let gagList = null;
+  let winErrLogged = false;
+
+  function displayName(name) {
+    const a = AssetGet("Female3DCG", "ItemMouth", name);
+    return a?.Description || name;
+  }
+
+  function setMsg(m) {
+    winMsg = m;
+    winSig = "";
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(() => { winMsg = ""; winSig = ""; }, 4000);
+  }
+
+  function loadWinRect() {
+    try { return JSON.parse(localStorage.getItem(`${MOD_NAME}:win`) || "null"); } catch (e) { return null; }
+  }
+  function saveWinRect() {
+    if (!winEl) return;
+    const r = winEl.getBoundingClientRect();
+    try { localStorage.setItem(`${MOD_NAME}:win`, JSON.stringify({ l: r.left, t: r.top, w: r.width, h: r.height })); } catch (e) {}
+  }
+  function clampWin() {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const r = winEl.getBoundingClientRect();
+    const w = Math.min(Math.max(r.width, 240), vw - 8);
+    const h = Math.min(Math.max(r.height, 260), vh - 8);
+    const l = Math.min(Math.max(r.left, 4), vw - w - 4);
+    const t = Math.min(Math.max(r.top, 4), vh - h - 4);
+    winEl.style.width = w + "px";
+    winEl.style.height = h + "px";
+    winEl.style.left = l + "px";
+    winEl.style.top = t + "px";
+  }
+
+  function renderPicker() {
+    if (!winEl) return;
+    if (!gagList) {
+      gagList = api.stack.available()
+        .map(([n, l]) => ({ n, l, d: displayName(n) }))
+        .sort((a, b) => a.d.localeCompare(b.d));
+    }
+    const query = winQuery.trim().toLowerCase();
+    const el = winEl.querySelector("#ge-picker");
+    el.textContent = "";
+    const can = settings.extraGags && baseFilled() && settings.stack.length < MAX_STACK;
+    for (const g of gagList) {
+      if (query && !g.d.toLowerCase().includes(query) && !g.n.toLowerCase().includes(query)) continue;
+      const b = document.createElement("button");
+      b.className = "ge-pick" + (can ? "" : " ge-dim");
+      b.dataset.act = "add";
+      b.dataset.name = g.n;
+      const left = document.createElement("span");
+      left.textContent = g.d;
+      const right = document.createElement("span");
+      right.textContent = `+${g.l}`;
+      b.append(left, right);
+      el.appendChild(b);
+    }
+  }
+
+  function renderWin() {
+    if (!winEl) return;
+    winEl.querySelector("#ge-title-text").textContent =
+      `Extra gags ${settings.stack.length}/${MAX_STACK}  (+${stackTotal})`;
+
+    let status = winMsg;
+    if (!status) {
+      if (!baseFilled()) status = "Put a gag in all three mouth slots to add extras.";
+      else if (!api.enabled) status = "Extended silencing is off, so extras don’t count yet.";
+      else status = `Total gag level: ${SpeechGetTotalGagLevel(Player)}`;
+    }
+    winEl.querySelector("#ge-status").textContent = status;
+
+    const stackEl = winEl.querySelector("#ge-stack");
+    stackEl.textContent = "";
+    if (!settings.stack.length) {
+      const p = document.createElement("div");
+      p.className = "ge-empty";
+      p.textContent = "Nothing stacked yet.";
+      stackEl.appendChild(p);
+    }
+    for (let i = settings.stack.length - 1; i >= 0; i--) {
+      const name = settings.stack[i];
+      const row = document.createElement("div");
+      row.className = "ge-row";
+      const label = document.createElement("span");
+      label.textContent = `${i + 1}. ${displayName(name)}  +${assetLevel("ItemMouth", name)}`;
+      row.appendChild(label);
+      if (i === settings.stack.length - 1) {
+        const b = document.createElement("button");
+        b.textContent = "Remove";
+        b.dataset.act = "pop";
+        row.appendChild(b);
+      }
+      stackEl.appendChild(row);
+    }
+    renderPicker();
+  }
+
+  function buildWin() {
+    if (winEl) return;
+    const style = document.createElement("style");
+    style.textContent = `
+      #ge-win{position:fixed;z-index:99999;display:flex;flex-direction:column;box-sizing:border-box;min-width:240px;min-height:260px;background:#1b1c25;color:#e9e7f2;border:2px solid #6c4fd0;border-radius:10px;font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.5);overflow:hidden}
+      #ge-win.ge-hidden{display:none}
+      #ge-win .ge-title{padding:10px 12px;background:#2a2b3a;font-weight:600;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+      #ge-win .ge-status{padding:6px 12px;color:#a09db4;font-size:13px}
+      #ge-win .ge-stack{max-height:38%;overflow-y:auto;padding:0 8px}
+      #ge-win .ge-empty{padding:8px 6px;color:#a09db4}
+      #ge-win .ge-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:2px 6px;border-bottom:1px solid #2f3040}
+      #ge-win button{min-height:44px;min-width:44px;padding:0 12px;color:#e9e7f2;background:#2a2b3a;border:1px solid #3a3b4f;border-radius:6px;font:inherit;cursor:pointer}
+      #ge-win button.ge-dim{opacity:.45}
+      #ge-win .ge-search{margin:8px;padding:0 10px;height:44px;box-sizing:border-box;background:#15161d;color:#e9e7f2;border:1px solid #3a3b4f;border-radius:6px;font:inherit}
+      #ge-win .ge-picker{flex:1 1 0;min-height:80px;overflow-y:auto;padding:0 8px}
+      #ge-win .ge-pick{display:flex;width:100%;justify-content:space-between;text-align:left;margin-bottom:4px}
+      #ge-win .ge-foot{padding:8px 44px 8px 8px;border-top:1px solid #2f3040}
+      #ge-win .ge-grip{position:absolute;right:0;bottom:0;width:36px;height:36px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 50%,#6c4fd0 50%)}
+    `;
+    document.head.appendChild(style);
+
+    const saved = loadWinRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const w = saved?.w || Math.min(360, vw - 16);
+    const h = saved?.h || Math.min(520, vh - 16);
+
+    winEl = document.createElement("div");
+    winEl.id = "ge-win";
+    winEl.className = "ge-hidden";
+    winEl.style.width = w + "px";
+    winEl.style.height = h + "px";
+    winEl.style.left = (saved?.l ?? vw - w - 12) + "px";
+    winEl.style.top = (saved?.t ?? 70) + "px";
+    winEl.innerHTML = `
+      <div class="ge-title"><span id="ge-title-text">Extra gags</span></div>
+      <div class="ge-status" id="ge-status"></div>
+      <div class="ge-stack" id="ge-stack"></div>
+      <input class="ge-search" id="ge-search" type="search" placeholder="Search gags…" autocomplete="off">
+      <div class="ge-picker" id="ge-picker"></div>
+      <div class="ge-foot"><button data-act="release">Release all</button></div>
+      <div class="ge-grip" id="ge-grip"></div>`;
+    document.body.appendChild(winEl);
+
+    // Keep clicks, touches and keys inside the window away from the game underneath
+    ["pointerdown", "mousedown", "mouseup", "touchstart", "touchend", "click", "wheel", "keydown", "keyup", "keypress"]
+      .forEach(ev => winEl.addEventListener(ev, e => e.stopPropagation()));
+
+    winEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const act = btn.dataset.act;
+      if (act === "add") setMsg(api.stack.add(btn.dataset.name));
+      else if (act === "pop") setMsg(api.stack.pop());
+      else if (act === "release") setMsg(api.stack.clear());
+    });
+
+    winEl.querySelector("#ge-search").addEventListener("input", (e) => {
+      winQuery = e.target.value;
+      renderPicker();
+    });
+
+    // Drag by the title bar
+    const title = winEl.querySelector(".ge-title");
+    let drag = null;
+    title.addEventListener("pointerdown", (e) => {
+      const r = winEl.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      title.setPointerCapture(e.pointerId);
+    });
+    title.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      winEl.style.left = (e.clientX - drag.dx) + "px";
+      winEl.style.top = (e.clientY - drag.dy) + "px";
+    });
+    const endDrag = () => { if (drag) { drag = null; clampWin(); saveWinRect(); } };
+    title.addEventListener("pointerup", endDrag);
+    title.addEventListener("pointercancel", endDrag);
+
+    // Resize from the corner handle
+    const grip = winEl.querySelector("#ge-grip");
+    let resizing = false;
+    grip.addEventListener("pointerdown", (e) => { resizing = true; grip.setPointerCapture(e.pointerId); });
+    grip.addEventListener("pointermove", (e) => {
+      if (!resizing) return;
+      const r = winEl.getBoundingClientRect();
+      winEl.style.width = Math.max(240, e.clientX - r.left + 14) + "px";
+      winEl.style.height = Math.max(260, e.clientY - r.top + 14) + "px";
+    });
+    const endResize = () => { if (resizing) { resizing = false; clampWin(); saveWinRect(); } };
+    grip.addEventListener("pointerup", endResize);
+    grip.addEventListener("pointercancel", endResize);
+  }
+
+  function winShouldShow() {
+    return !!(settings.extraGags && CurrentCharacter?.IsPlayer?.() &&
+      REAL_GROUPS.includes(CurrentCharacter.FocusGroup?.Name));
+  }
+
+  function startWinPoll() {
+    window.addEventListener("resize", () => {
+      if (winEl && !winEl.classList.contains("ge-hidden")) clampWin();
+    });
+    setInterval(() => {
+      try {
+        if (!winShouldShow()) { if (winEl) winEl.classList.add("ge-hidden"); return; }
+        buildWin();
+        if (winEl.classList.contains("ge-hidden")) {
+          winEl.classList.remove("ge-hidden");
+          clampWin();
+          winSig = "";
+        }
+        const sig = [settings.stack.join("|"), api.enabled, baseFilled(), SpeechGetTotalGagLevel(Player)].join("#");
+        if (sig !== winSig) { winSig = sig; renderWin(); }
+      } catch (e) {
+        if (!winErrLogged) { winErrLogged = true; console.error(`[${MOD_NAME}] window failed`, e); }
+      }
+    }, 250);
+  }
+
   function init() {
     loadSettings();
     api.enabled = settings.enabled;
     publishMarker();
+    startSlotWatcher();
+    startWinPoll();
 
-    api.virtual = {
-    available(group) {
-      const g = AssetGroup.find(x => x.Name === group);
-      return g ? g.Asset.map(a => [a.Name, SpeechGetEffectGagLevel(a.Effect || [])]).filter(p => p[1] > 0) : [];
-    },
-    add(group, name) {
-      if (!VIRTUAL_GROUPS.includes(group)) return `unknown slot: ${group}`;
-      const lvl = assetLevel(group, name);
-      if (lvl == null) return `${name} doesn't exist in ${group}`;
-      if (lvl === 0) return `${name} has no gag level, so it would add nothing`;
-      if (settings.virtual[group].length >= MAX_VIRTUAL_PER_SLOT) return `${group} is full (${MAX_VIRTUAL_PER_SLOT})`;
-      settings.virtual[group].push(name);
-      refreshVirtual(); saveSoon();
-      return `added ${name} (+${lvl}) to ${group}`;
-    },
-    remove(group, name) {
-      const list = settings.virtual[group] || [];
-      const i = list.indexOf(name);
-      if (i < 0) return "not found";
-      list.splice(i, 1);
-      refreshVirtual(); saveSoon();
-      return `removed ${name} from ${group}`;
-    },
-    clear(group) {
-      for (const g of group ? [group] : VIRTUAL_GROUPS) if (settings.virtual[g]) settings.virtual[g] = [];
-      refreshVirtual(); saveSoon();
-      return "cleared";
-    },
-    list() { return { gags: JSON.parse(JSON.stringify(settings.virtual)), levels: { ...virtualLevels } }; },
-  };
+    api.stack = {
+      enable(on) {
+        settings.extraGags = !!on;
+        if (!on) settings.stack = [];
+        refreshStack(); saveSoon();
+        return `additional gags ${on ? "enabled" : "disabled"}`;
+      },
+      available() {
+        const g = AssetGroup.find(x => x.Name === "ItemMouth");
+        return g ? g.Asset.map(a => [a.Name, SpeechGetEffectGagLevel(a.Effect || [])]).filter(p => p[1] > 0) : [];
+      },
+      add(name) {
+        if (!settings.extraGags) return "enable additional gags first: GagsEvolved.stack.enable(true)";
+        if (!baseFilled()) return "all three real mouth slots need a gag first";
+        if (settings.stack.length >= MAX_STACK) return `the stack is full (${MAX_STACK})`;
+        const lvl = assetLevel("ItemMouth", name);
+        if (!(lvl > 0)) return `${name} is not a usable gag`;
+        settings.stack.push(name);
+        refreshStack(); saveSoon();
+        return `stacked ${name} (+${lvl}), ${settings.stack.length} on the stack`;
+      },
+      pop() {
+        if (!settings.stack.length) return "the stack is empty";
+        const name = settings.stack.pop();
+        refreshStack(); saveSoon();
+        return `removed ${name}`;
+      },
+      clear() { settings.stack = []; refreshStack(); saveSoon(); return "cleared"; },
+      list() { return { enabled: settings.extraGags, stack: [...settings.stack], extraLevel: virtualExtra() }; },
+    };
 
     try {
       PreferenceRegisterExtensionSetting({
@@ -265,11 +524,13 @@
 
             DrawCheckbox(500, 620, 80, 80, "", settings.showBadge);
             DrawText("Show my badge to others", 604, 660, "Black", "Gray");
+
+            DrawCheckbox(500, 730, 80, 80, "", settings.extraGags);
+            DrawText("Enable additional gags", 604, 770, "Black", "Gray");
           } finally {
             MainCanvas.textAlign = "center";
           }
 
-          // Number rows: -5, -1, value, +1, +5
           const rows = [[340, settings.fadeStart], [470, settings.silentAt]];
           for (const [y, value] of rows) {
             DrawButton(1000, y, 90, 90, "-5", "White");
@@ -279,9 +540,10 @@
             DrawButton(1490, y, 90, 90, "+5", "White");
           }
 
-          DrawButton(500, 780, 520, 90,
+          DrawButton(500, 860, 520, 90,
             resetArmed ? "Tap again to confirm" : "Reset to defaults",
             resetArmed ? "#f2aacb" : "White");
+          DrawButton(1100, 860, 520, 90, "Release extra gags", "White");
           DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "Back");
         },
         click: () => {
@@ -290,10 +552,17 @@
             return;
           }
           if (MouseIn(480, 200, 1000, 120)) { setEnabled(!settings.enabled); return; }
-          if (MouseIn(480, 600, 1000, 120)) {
+          if (MouseIn(480, 600, 1000, 110)) {
             settings.showBadge = !settings.showBadge;
             saveSoon();
             publishMarker();
+            return;
+          }
+          if (MouseIn(480, 710, 1000, 120)) {
+            settings.extraGags = !settings.extraGags;
+            if (!settings.extraGags) settings.stack = [];
+            refreshStack();
+            saveSoon();
             return;
           }
           const steps = [[1000, -5], [1110, -1], [1380, 1], [1490, 5]];
@@ -301,16 +570,22 @@
             if (MouseIn(x, 340, 90, 90)) { adjust("fadeStart", d); return; }
             if (MouseIn(x, 470, 90, 90)) { adjust("silentAt", d); return; }
           }
-          if (MouseIn(500, 780, 520, 90)) {
-          if (resetArmed) {
-            clearTimeout(resetTimer);
-            resetArmed = false;
-            resetAll();
-          } else {
-            resetArmed = true;
-            resetTimer = setTimeout(() => { resetArmed = false; }, 3000);
+          if (MouseIn(500, 860, 520, 90)) {
+            if (resetArmed) {
+              clearTimeout(resetTimer);
+              resetArmed = false;
+              resetAll();
+            } else {
+              resetArmed = true;
+              resetTimer = setTimeout(() => { resetArmed = false; }, 3000);
+            }
+            return;
           }
-        }
+          if (MouseIn(1100, 860, 520, 90)) {
+            settings.stack = [];
+            refreshStack();
+            saveSoon();
+          }
         },
       });
     } catch (e) {

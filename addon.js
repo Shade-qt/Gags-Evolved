@@ -247,18 +247,6 @@
     list() { return { gags: JSON.parse(JSON.stringify(settings.virtual)), levels: { ...virtualLevels } }; },
   };
 
-  mod.hookFunction("SpeechGetTotalGagLevel", 0, (args, next) => {
-    const result = next(args);
-    const C = args[0];
-    if (!api.enabled || !C || C.MemberNumber !== Player.MemberNumber) return result;
-    let extra = 0;
-    for (const group of VIRTUAL_GROUPS) {
-      if (REQUIRE_REAL_ITEM && !InventoryGet(Player, group)) continue;
-      extra += virtualLevels[group] || 0;
-    }
-    return result + extra;
-  });
-
     try {
       PreferenceRegisterExtensionSetting({
         Identifier: "GagsEvolved",
@@ -333,6 +321,18 @@
       name: MOD_NAME,
       fullName: "Gags Evolved",
       version: VERSION,
+    });
+
+    mod.hookFunction("SpeechGetTotalGagLevel", 0, (args, next) => {
+      const result = next(args);
+      const C = args[0];
+      if (!api.enabled || !C || C.MemberNumber !== Player.MemberNumber) return result;
+      let extra = 0;
+      for (const group of VIRTUAL_GROUPS) {
+        if (REQUIRE_REAL_ITEM && !InventoryGet(Player, group)) continue;
+        extra += virtualLevels[group] || 0;
+      }
+      return result + extra;
     });
 
     // 1) Fade and silence decisions
@@ -458,7 +458,7 @@
   const timer = setInterval(() => {
     if (typeof Player !== "undefined" && Player?.MemberNumber && typeof bcModSdk !== "undefined") {
       clearInterval(timer);
-      init();
+      try { init(); } catch (e) { console.error(`[${MOD_NAME}] init failed`, e); }
     }
   }, 500);
 })();

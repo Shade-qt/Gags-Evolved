@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   if (window.GagsEvolved) return;
-  const VERSION = "1.0.5";
+  const VERSION = "1.0.6";
   const MOD_NAME = "GagsEvolved";
 
   // --- Tunables ---
@@ -16,11 +16,41 @@
   ];
   const SILENT_MARK = "\u2063"; // invisible marker linking the two hooks
   const ACTION_KEY = "GagsEvolvedSilence";
+  const VIRTUAL_GROUPS = ["ItemMouth", "ItemMouth2", "ItemMouth3"];
+  const MAX_VIRTUAL_PER_SLOT = 8;
+  const REQUIRE_REAL_ITEM = true; // extras only count while that slot holds a real item
 
   // --- Settings (stored on your account) ---
   const EXT_KEY = "GagsEvolved";
-  const DEFAULTS = { enabled: false, fadeStart: 20, silentAt: 40, showBadge: true };
+  const DEFAULTS = { enabled: false, fadeStart: 20, silentAt: 40, showBadge: true, virtual: {} };
   let settings = { ...DEFAULTS };
+
+  let virtualLevels = {};
+
+  function assetLevel(group, name) {
+    const asset = AssetGet("Female3DCG", group, name);
+    return asset ? SpeechGetEffectGagLevel(asset.Effect || []) : null;
+  }
+
+  function sanitizeVirtual(v) {
+    const out = {};
+    for (const group of VIRTUAL_GROUPS) {
+      const list = Array.isArray(v?.[group]) ? v[group] : [];
+      out[group] = list
+        .filter(n => typeof n === "string" && assetLevel(group, n) != null)
+        .slice(0, MAX_VIRTUAL_PER_SLOT);
+    }
+    return out;
+  }
+
+  function refreshVirtual() {
+    virtualLevels = {};
+    for (const group of VIRTUAL_GROUPS) {
+      let sum = 0;
+      for (const name of settings.virtual[group]) sum += assetLevel(group, name) || 0;
+      virtualLevels[group] = sum;
+    }
+  }
 
   function applySettings() {
     const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -28,6 +58,8 @@
     settings.silentAt = clamp(Math.round(Number(settings.silentAt) || 40), settings.fadeStart + 5, 80);
     FADE_START = settings.fadeStart;
     SILENT_AT = settings.silentAt;
+    settings.virtual = sanitizeVirtual(settings.virtual);
+    refreshVirtual();
   }
 
   function saveSettings() {
@@ -144,7 +176,8 @@
   let resetTimer = null;
 
   function resetAll() {
-    settings = { ...DEFAULTS };
+    const keep = settings.virtual;
+    settings = { ...DEFAULTS, virtual: keep };
     applySettings();
     api.enabled = settings.enabled;
     saveSoon();
@@ -182,6 +215,49 @@
     loadSettings();
     api.enabled = settings.enabled;
     publishMarker();
+
+    api.virtual = {
+    available(group) {
+      const g = AssetGroup.find(x => x.Name === group);
+      return g ? g.Asset.map(a => [a.Name, SpeechGetEffectGagLevel(a.Effect || [])]).filter(p => p[1] > 0) : [];
+    },
+    add(group, name) {
+      if (!VIRTUAL_GROUPS.includes(group)) return `unknown slot: ${group}`;
+      const lvl = assetLevel(group, name);
+      if (lvl == null) return `${name} doesn't exist in ${group}`;
+      if (lvl === 0) return `${name} has no gag level, so it would add nothing`;
+      if (settings.virtual[group].length >= MAX_VIRTUAL_PER_SLOT) return `${group} is full (${MAX_VIRTUAL_PER_SLOT})`;
+      settings.virtual[group].push(name);
+      refreshVirtual(); saveSoon();
+      return `added ${name} (+${lvl}) to ${group}`;
+    },
+    remove(group, name) {
+      const list = settings.virtual[group] || [];
+      const i = list.indexOf(name);
+      if (i < 0) return "not found";
+      list.splice(i, 1);
+      refreshVirtual(); saveSoon();
+      return `removed ${name} from ${group}`;
+    },
+    clear(group) {
+      for (const g of group ? [group] : VIRTUAL_GROUPS) if (settings.virtual[g]) settings.virtual[g] = [];
+      refreshVirtual(); saveSoon();
+      return "cleared";
+    },
+    list() { return { gags: JSON.parse(JSON.stringify(settings.virtual)), levels: { ...virtualLevels } }; },
+  };
+
+  mod.hookFunction("SpeechGetTotalGagLevel", 0, (args, next) => {
+    const result = next(args);
+    const C = args[0];
+    if (!api.enabled || !C || C.MemberNumber !== Player.MemberNumber) return result;
+    let extra = 0;
+    for (const group of VIRTUAL_GROUPS) {
+      if (REQUIRE_REAL_ITEM && !InventoryGet(Player, group)) continue;
+      extra += virtualLevels[group] || 0;
+    }
+    return result + extra;
+  });
 
     try {
       PreferenceRegisterExtensionSetting({

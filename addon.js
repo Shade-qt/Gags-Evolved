@@ -16,9 +16,6 @@
   ];
   const SILENT_MARK = "\u2063"; // invisible marker linking the two hooks
   const ACTION_KEY = "GagsEvolvedSilence";
-  const VIRTUAL_GROUPS = ["ItemMouth", "ItemMouth2", "ItemMouth3"];
-  const MAX_VIRTUAL_PER_SLOT = 8;
-  const REQUIRE_REAL_ITEM = true; // extras only count while that slot holds a real item
   const REAL_GROUPS = ["ItemMouth", "ItemMouth2", "ItemMouth3"];
   const MAX_STACK = 10;
 
@@ -27,31 +24,9 @@
   const DEFAULTS = { enabled: false, fadeStart: 20, silentAt: 40, showBadge: true, extraGags: false, stack: [] };
   let settings = { ...DEFAULTS };
 
-  let virtualLevels = {};
-
   function assetLevel(group, name) {
     const asset = AssetGet("Female3DCG", group, name);
     return asset ? SpeechGetEffectGagLevel(asset.Effect || []) : null;
-  }
-
-  function sanitizeVirtual(v) {
-    const out = {};
-    for (const group of VIRTUAL_GROUPS) {
-      const list = Array.isArray(v?.[group]) ? v[group] : [];
-      out[group] = list
-        .filter(n => typeof n === "string" && assetLevel(group, n) != null)
-        .slice(0, MAX_VIRTUAL_PER_SLOT);
-    }
-    return out;
-  }
-
-  function refreshVirtual() {
-    virtualLevels = {};
-    for (const group of VIRTUAL_GROUPS) {
-      let sum = 0;
-      for (const name of settings.virtual[group]) sum += assetLevel(group, name) || 0;
-      virtualLevels[group] = sum;
-    }
   }
 
   function applySettings() {
@@ -602,12 +577,7 @@
       const result = next(args);
       const C = args[0];
       if (!api.enabled || !C || C.MemberNumber !== Player.MemberNumber) return result;
-      let extra = 0;
-      for (const group of VIRTUAL_GROUPS) {
-        if (REQUIRE_REAL_ITEM && !InventoryGet(Player, group)) continue;
-        extra += virtualLevels[group] || 0;
-      }
-      return result + extra;
+      return result + virtualExtra();
     });
 
     // 1) Fade and silence decisions
@@ -615,8 +585,17 @@
       const [text, intensity, ignoreOOC] = args;
       if (!api.enabled || text == null || !(intensity > 0)) return next(args);
 
-      const level = api.force != null ? api.force : intensity;
-      if (level <= FADE_START) return next(args);
+      let level = intensity;
+      if (api.force != null) {
+        level = api.force;
+      } else {
+        // The caller passes only the real gags' level. Add the stack's extras,
+        // but only when this is your own speech (the levels match).
+        const extra = virtualExtra();
+        if (extra > 0 && intensity === SpeechGetTotalGagLevel(Player) - extra) level += extra;
+      }
+
+      if (level <= FADE_START) return next([text, level, ignoreOOC]);
       if (level >= SILENT_AT) return silentText(text, ignoreOOC);
 
       const base = next([text, FADE_START, ignoreOOC]);
